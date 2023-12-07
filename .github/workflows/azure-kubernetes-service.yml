@@ -1,0 +1,84 @@
+name: Build and deploy an app to AKS
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: "baskey_RG"
+  CLUSTER_NAME: "qwerty_cluster"
+  DEPLOYMENT_MANIFEST_PATH: "manifest/deploy2.yml"
+  IMAGE_NAME: httpdsample
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      # Checks out the repository this file is in
+      - uses: actions/checkout@v3
+
+      # Builds and pushes an image up to your docker hub
+      - name: Build, tag, and push image to docker hub
+        id: build-image
+        run: |
+          echo "....>>>>>>>>>logging in to docker hub<<<<<<<<<<<<<<....."
+          docker login -u=${{ secrets.DOCKER_USERNAME }} -p=${{ secrets.DOCKER_PASSWORD }}
+
+          echo Build started on `date`
+          echo "....>>>>>>>>>Building the Docker image<<<<<<<<<<<<<<........"
+          docker build -t baskarvj/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          #docker build -t baskarvj/httpdsample:${{ github.sha }} .
+          
+          #docker push username/my-repo
+          
+          echo "....>>>>>>>>>Pushing image to docker hub<<<<<<<<<<<<<<....."
+          
+          docker push baskarvj/${{ env.IMAGE_NAME }}:${{ github.sha }} 
+
+
+
+  deploy:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      # Checks out the repository this file is in
+      - uses: actions/checkout@v3
+
+      # Logs in with your Azure credentials
+      - name: Azure login
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az login -u ${{ secrets.az_username }}  -p ${{ secrets.az_password  }}
+
+      # Use kubelogin to configure your kubeconfig for Azure auth
+      - name: Set up kubelogin for non-interactive login
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.25'
+
+      # Retrieves your Azure Kubernetes Service cluster's kubeconfig file
+      - name: Get K8s context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          admin: 'false'
+          use-kubelogin: 'true'
+
+
+      # Deploy the Docker image to the AKS cluster
+      - name: Deploy
+        run: |-
+          sed -i -e  's/IMAGE/'"$IMAGE_NAME"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+          sed -i -e  's/GITHUB_SHA/'"$GITHUB_SHA"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+          cat ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+          kubectl apply -f ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+

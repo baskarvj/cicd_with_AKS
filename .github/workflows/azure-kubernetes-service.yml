@@ -9,8 +9,6 @@ env:
   RESOURCE_GROUP: "baskey_RG"
   CLUSTER_NAME: "qwerty_cluster"
   DEPLOYMENT_MANIFEST_PATH: "manifest/deploy2.yml"
-  IMAGE_NAME: httpdsample
-
 jobs:
   build:
     permissions:
@@ -29,15 +27,14 @@ jobs:
           docker login -u=${{ secrets.DOCKER_USERNAME }} -p=${{ secrets.DOCKER_PASSWORD }}
 
           echo Build started on `date`
+
           echo "....>>>>>>>>>Building the Docker image<<<<<<<<<<<<<<........"
-          docker build -t baskarvj/${{ env.IMAGE_NAME }}:${{ github.sha }} .
-          #docker build -t baskarvj/httpdsample:${{ github.sha }} .
+          docker build -t baskarvj/httpdsample:${{ github.sha }} .
           
-          #docker push username/my-repo
           
           echo "....>>>>>>>>>Pushing image to docker hub<<<<<<<<<<<<<<....."
           
-          docker push baskarvj/${{ env.IMAGE_NAME }}:${{ github.sha }} 
+          docker push baskarvj/httpdsample:${{ github.sha }} 
 
 
 
@@ -74,11 +71,26 @@ jobs:
           use-kubelogin: 'true'
 
 
-      # Deploy the Docker image to the AKS cluster
-      - name: Deploy
-        run: |-
-          sed -i -e  's/IMAGE/'"$IMAGE_NAME"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
-          sed -i -e  's/GITHUB_SHA/'"$GITHUB_SHA"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
-          cat ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
-          kubectl apply -f ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+      # # Deploy the Docker image to the AKS cluster
+      # - name: Deploy
+      #   run: |-
+      #     sed -i -e  's/IMAGE/'"$IMAGE_NAME"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+      #     sed -i -e  's/GITHUB_SHA/'"$GITHUB_SHA"'/' ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+      #     cat ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
+      #     kubectl apply -f ${{ github.workspace }}/.github/workflows/manifest/deploy2.yml
 
+
+      - name: Push Changes to argocd
+        run: |
+            git clone https://baskarvj:${{ secrets.git_pass }}@github.com/baskarvj/kubernetes_with_argocd.git
+            cd kubernetes_with_argocd
+            ls -la
+            sed -i '/image: baskarvj.*/c\        image: baskarvj/httpdsample:${{ github.sha }}' .github/workflows/manifest/deploy2.yml
+            cat .github/workflows/manifest/deploy2.yml
+            
+            git config user.email "baskeyvj03@gmail.com"
+            git config user.name "baskarvj"
+
+            git add .
+            git commit -m "image updated"
+            git push https://baskarvj:${{ secrets.git_pass }}@github.com/baskarvj/kubernetes_with_argocd.git

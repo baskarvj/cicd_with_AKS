@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: nodecontainer
-        image: baskarvj/IMAGE:GITHUB_SHA
+        image: baskarvj/httpdsample:5d498955767ddea8dcf9f3489d2d5bbb64dfb95d
         ports:
         - containerPort: 80
 
